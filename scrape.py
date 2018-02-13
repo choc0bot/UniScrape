@@ -8,6 +8,10 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import db
 
+# PUSHOVER
+
+import httplib, urllib
+
 cred = credentials.Certificate('uniscrape-firebase-adminsdk-6dttz-d2abb0fcac.json')
 # default_app = firebase_admin.initialize_app(cred)
 
@@ -18,7 +22,7 @@ firebase_admin.initialize_app(cred, {
 
 # As an admin, the app has access to read and write all data, regradless of Security Rules
 ref = db.reference('/prices')
-print(ref.get())
+# print(ref.get())
 
 
 class Uniqlo_Scraper:
@@ -72,16 +76,49 @@ class Uniqlo_Scraper:
         return price_dict
 
 
+def dict_compare(d1, d2):
+    """
+    https://stackoverflow.com/questions/4527942/comparing-two-dictionaries-in-python
+    """
+    d1_keys = set(d1.keys())
+    d2_keys = set(d2.keys())
+    intersect_keys = d1_keys.intersection(d2_keys)
+    added = d1_keys - d2_keys
+    removed = d2_keys - d1_keys
+    modified = {o : (d1[o], d2[o]) for o in intersect_keys if d1[o] != d2[o]}
+    same = set(o for o in intersect_keys if d1[o] == d2[o])
+    return added, removed, modified, same
+
+def find_new_prices(priceCategory):
+    prices_ref = ref.child(priceCategory)
+    prices_ref = ref.child(priceCategory)
+    old_sale = prices_ref.get()
+    cat_list = scraper.filter_prices_by_discount(51, priceCategory)
+    cat_dict = scraper.get_price_dict(cat_list)
+    prices_ref.set(cat_dict)
+    added, removed, modified, same = dict_compare(old_sale, cat_dict)
+    notify_pb(cat_dict)
+    print added, same
+
+def notify_pb(price_dict):
+    conn = httplib.HTTPSConnection("api.pushover.net:443")
+    conn.request("POST", "/1/messages.json",
+    urllib.urlencode({
+        "token": "",
+        "user": "",
+        "message": price_dict,
+    }), { "Content-type": "application/x-www-form-urlencoded" })
+    conn.getresponse()
 
 if __name__ == '__main__':
     scraper = Uniqlo_Scraper()
-    # prices = scraper.get_prices()
-    men_list = scraper.filter_prices_by_discount(51, 'men')
-    women_list = scraper.filter_prices_by_discount(51, 'women')
-    men_dict = scraper.get_price_dict(men_list)
-    women_dict  = scraper.get_price_dict(women_list)
-    prices_men_ref = ref.child('mens')
-    prices_men_ref.set(men_dict)
-    prices_women_ref = ref.child('womens')
-    prices_women_ref.set(women_dict)
-    print men_dict
+
+    # prices = scraper.get_prices('men')
+    find_new_prices('men')
+    # find_new_prices('women')
+
+
+    # prices_men_ref.set(men_dict)
+    # prices_women_ref = ref.child('women')
+    # prices_women_ref.set(women_dict)
+    # print men_dict
