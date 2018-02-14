@@ -24,15 +24,12 @@ firebase_admin.initialize_app(cred, {
 ref = db.reference('/prices')
 # print(ref.get())
 
-
+# def get_prices(self, filter_string):
 class Uniqlo_Scraper:
-    def __init__(self):
+    def __init__(self, filter_string):
         self.headers = {"User-Agent":"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/34.0.1847.116 Safari/537.36","Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8", "Referer":"http://www.google.com.au","Cache-Control":"max-age=0"}
         self.baseURL = "http://www.uniqlo.com/au/"
 
-        """Parses UNIQLO HTML to get prices"""
-
-    def get_prices(self, filter_string):
         """Parses UNIQLO HTML to get prices"""
 
         result_url = "store/"+  filter_string +"/featured/sale.html"
@@ -52,14 +49,13 @@ class Uniqlo_Scraper:
             p = [product_name[i].text, float(old_price[i].text[3:]), float(sale_price[i].text[3:]), product_url]
             i += 1
             self.product_list.append(p)
-        return self.product_list
 
-    def filter_prices_by_discount(self, discount,filter_string):
+    def filter_prices_by_discount(self, discount):
         """
         Takes  discount as an integer returns all products
         with a greater or equal discount
         """
-        filter_list = self.get_prices(filter_string)
+        filter_list = self.product_list
         new_list = []
         i = 0
         for product in filter_list:
@@ -68,9 +64,9 @@ class Uniqlo_Scraper:
         
         return new_list
 
-    def get_price_dict(self,price_list):
+    def get_price_dict(self,discount):
         price_dict = {}
-        for product in price_list:
+        for product in scraper.filter_prices_by_discount(discount):
             my_dict = {'old_price': product[1], 'new_price': product[2],'product_url': product[3]}
             price_dict[product[0]] = my_dict
         return price_dict
@@ -90,31 +86,50 @@ def dict_compare(d1, d2):
     return added, removed, modified, same
 
 def find_new_prices(priceCategory):
-    prices_ref = ref.child(priceCategory)
+
     prices_ref = ref.child(priceCategory)
     old_sale = prices_ref.get()
-    cat_list = scraper.filter_prices_by_discount(51, priceCategory)
-    cat_dict = scraper.get_price_dict(cat_list)
+    # cat_list = scraper.filter_prices_by_discount(51, priceCategory)
+    cat_dict = scraper.get_price_dict(51)
     prices_ref.set(cat_dict)
-    added, removed, modified, same = dict_compare(old_sale, cat_dict)
-    notify_pb(cat_dict)
-    print added, same
+    added, removed, modified, same = dict_compare(cat_dict, old_sale)
+    notify_pb(added)
+    notify_pb(modified)
+    # print added, removed, modified, same
 
-def notify_pb(price_dict):
-    conn = httplib.HTTPSConnection("api.pushover.net:443")
-    conn.request("POST", "/1/messages.json",
-    urllib.urlencode({
-        "token": "",
-        "user": "",
-        "message": price_dict,
-    }), { "Content-type": "application/x-www-form-urlencoded" })
-    conn.getresponse()
+def notify_pb(price_set):
+    my_dict = scraper.get_price_dict(51)
+    for key in price_set:
+        old_price = my_dict[key]['old_price']
+        new_price = my_dict[key]['new_price']
+        product_url = my_dict[key]['product_url']
+        discount = str(round(((1 - (new_price / old_price ))*100)))
+        myMessage = discount+"% off \"\n\" Old Price: " + str(old_price) + "\"\n\"" + " Sale Price: " + str(new_price)
+        myMessage = myMessage.encode('ascii',errors='ignore')
+        key = key.encode('ascii',errors='ignore')
+        conn = httplib.HTTPSConnection("api.pushover.net:443")
+        conn.request("POST", "/1/messages.json",
+        urllib.urlencode({
+            "token": "",
+            "user": "",
+            "title": key,
+            "message": myMessage,
+            "url_title": "link",
+            "url": product_url,
+        }), { "Content-type": "application/x-www-form-urlencoded" })
+        conn.getresponse()
 
 if __name__ == '__main__':
-    scraper = Uniqlo_Scraper()
-
-    # prices = scraper.get_prices('men')
+    scraper = Uniqlo_Scraper('men')
     find_new_prices('men')
+
+    scraper = Uniqlo_Scraper('women')
+    find_new_prices('women')
+    # print scraper.product_list
+    # print scraper.filter_prices_by_discount(51)
+    # print scraper.get_price_dict(51)
+
+    
     # find_new_prices('women')
 
 
