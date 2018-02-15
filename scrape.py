@@ -12,6 +12,8 @@ from firebase_admin import db
 
 import httplib, urllib
 
+import config
+
 cred = credentials.Certificate('uniscrape-firebase-adminsdk-6dttz-d2abb0fcac.json')
 # default_app = firebase_admin.initialize_app(cred)
 
@@ -110,8 +112,8 @@ def notify_pb(price_set):
         conn = httplib.HTTPSConnection("api.pushover.net:443")
         conn.request("POST", "/1/messages.json",
         urllib.urlencode({
-            "token": "",
-            "user": "",
+            "token": config.token,
+            "user": config.user,
             "title": key,
             "message": myMessage,
             "url_title": "link",
