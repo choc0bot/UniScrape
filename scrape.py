@@ -1,6 +1,7 @@
 import re
 from bs4 import BeautifulSoup
 import requests
+import json
 
 # FIREBASE IMPORTS
 
@@ -93,8 +94,10 @@ def find_new_prices(priceCategory):
     old_sale = prices_ref.get()
     # cat_list = scraper.filter_prices_by_discount(51, priceCategory)
     cat_dict = scraper.get_price_dict(51)
-    prices_ref.set(cat_dict)
-    added, removed, modified, same = dict_compare(cat_dict, old_sale)
+    cat_dict_json = json.dumps(cat_dict)
+    prices_ref.set(cat_dict_json)
+    old_sale_dict = json.loads(old_sale)
+    added, removed, modified, same = dict_compare(cat_dict, old_sale_dict)
     notify_pb(added)
     notify_pb(modified)
     # print added, removed, modified, same
